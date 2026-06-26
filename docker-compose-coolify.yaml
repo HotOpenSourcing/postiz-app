@@ -5,13 +5,10 @@
 # REQUIRED Coolify env vars (set in UI):
 #   DATABASE_URL, REDIS_URL, JWT_SECRET, MAIN_URL
 #
-# Temporal needs PostgreSQL connection details. Set these in Coolify UI:
-#   TEMPORAL_PG_HOST   — PostgreSQL hostname
-#   TEMPORAL_PG_USER   — PostgreSQL username
-#   TEMPORAL_PG_PWD    — PostgreSQL password
-# If you skip them, temporal falls back to PG_HOST/PG_USER/PG_PASSWORD
-# (which Coolify auto-injects from your database resource).
-# Can be the SAME database as the main app — temporal uses its own schema.
+# Coolify auto-injects PGHOST, PGUSER, PGPASSWORD from linked database.
+# Temporal uses these automatically. No extra config needed if sharing the
+# same database. For a separate temporal DB, set in Coolify UI:
+#   TEMPORAL_PG_HOST, TEMPORAL_PG_USER, TEMPORAL_PG_PWD
 
 services:
   postiz:
@@ -160,8 +157,8 @@ services:
   # -----------------------
   # Temporal Stack
   # Uses temporal's native auto-setup entrypoint.
-  # Set TEMPORAL_PG_HOST/TEMPORAL_PG_USER/TEMPORAL_PG_PWD in Coolify UI,
-  # or it falls back to PG_HOST/PG_USER/PG_PASSWORD.
+  # Coolify injects PGHOST/PGUSER/PGPASSWORD from linked database resource.
+  # Override with TEMPORAL_PG_HOST/TEMPORAL_PG_USER/TEMPORAL_PG_PWD if needed.
   # -----------------------
   temporal:
     restart: always
@@ -171,16 +168,14 @@ services:
     environment:
       - DB=postgres12
       - DB_PORT=5432
-      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PG_HOST:-postgres}}
-      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PG_USER:-postgres}}
-      - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PG_PASSWORD:-}}
+      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PGHOST:-postgres}}
+      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PGUSER:-postgres}}
+      - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PGPASSWORD:-}}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
       - SKIP_DB_CREATE=false
       - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - LOG_LEVEL=info
-    volumes:
-      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
     networks:
       - temporal-network
     healthcheck:
