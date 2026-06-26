@@ -1,20 +1,17 @@
 # docker-compose-coolify.yaml
 # Production compose for Coolify deployment.
-# PostgreSQL and Redis are managed externally by Coolify —
-# set DATABASE_URL and REDIS_URL in Coolify's environment variables UI.
+# PostgreSQL and Redis are managed externally by Coolify.
 #
 # REQUIRED Coolify env vars (set in UI):
 #   DATABASE_URL, REDIS_URL, JWT_SECRET, MAIN_URL
 #
-# Temporal PostgreSQL (set ONE of these options in Coolify UI):
-#   Option 1 (Recommended): TEMPORAL_DATABASE_URL=postgresql://user:pass@host:5432/temporal_db
-#   Option 2: Reuse main DATABASE_URL (temporal will create its own schema)
-#   Option 3: Set individual vars: TEMPORAL_PG_HOST, TEMPORAL_PG_USER, TEMPORAL_PG_PASSWORD
-#
-# The temporal service uses a wrapper script (scripts/temporal-entrypoint.sh) that:
-#   - Automatically parses DATABASE_URL or TEMPORAL_DATABASE_URL
-#   - Tests PostgreSQL connectivity before starting
-#   - Provides clear error messages if configuration is missing
+# Temporal needs PostgreSQL connection details. Set these in Coolify UI:
+#   TEMPORAL_PG_HOST   — PostgreSQL hostname
+#   TEMPORAL_PG_USER   — PostgreSQL username
+#   TEMPORAL_PG_PWD    — PostgreSQL password
+# If you skip them, temporal falls back to PG_HOST/PG_USER/PG_PASSWORD
+# (which Coolify auto-injects from your database resource).
+# Can be the SAME database as the main app — temporal uses its own schema.
 
 services:
   postiz:
@@ -161,38 +158,31 @@ services:
       - debug
 
   # -----------------------
-  # Temporal Stack (PG + ES managed externally)
+  # Temporal Stack
+  # Uses temporal's native auto-setup entrypoint.
+  # Set TEMPORAL_PG_HOST/TEMPORAL_PG_USER/TEMPORAL_PG_PWD in Coolify UI,
+  # or it falls back to PG_HOST/PG_USER/PG_PASSWORD.
   # -----------------------
   temporal:
     restart: always
     ports:
       - '7233:7233'
     image: temporalio/auto-setup:1.28.1
-    entrypoint: ["/scripts/temporal-entrypoint.sh"]
     environment:
       - DB=postgres12
       - DB_PORT=5432
-      # Option 1: Pass DATABASE_URL (will be parsed by entrypoint script)
-      - DATABASE_URL=${TEMPORAL_DATABASE_URL:-${DATABASE_URL}}
-      # Option 2: Set individual vars (takes precedence over DATABASE_URL)
-      - TEMPORAL_PG_HOST=${TEMPORAL_PG_HOST}
-      - TEMPORAL_PG_USER=${TEMPORAL_PG_USER}
-      - TEMPORAL_PG_PASSWORD=${TEMPORAL_PG_PASSWORD}
-      # Temporal configuration
+      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PG_HOST:-postgres}}
+      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PG_USER:-postgres}}
+      - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PG_PASSWORD:-}}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
-      - TEMPORAL_NAMESPACE=default
-      - SKIP_DB_CREATE=${SKIP_DB_CREATE:-false}
-      - SKIP_DEFAULT_NAMESPACE_CREATION=${SKIP_DEFAULT_NAMESPACE_CREATION:-false}
-      # Logging for debugging
-      - LOG_LEVEL=${TEMPORAL_LOG_LEVEL:-info}
-    networks:
-      - temporal-network
+      - SKIP_DB_CREATE=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - LOG_LEVEL=info
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig
-      - ./scripts/temporal-entrypoint.sh:/scripts/temporal-entrypoint.sh:ro
-    labels:
-      kompose.volume.type: configMap
+    networks:
+      - temporal-network
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 7233 || exit 1"]
       interval: 15s
