@@ -12,7 +12,6 @@
 services:
   postiz:
     image: ghcr.io/gitroomhq/postiz-app:latest
-    container_name: postiz
     restart: always
     environment:
       # === Required Settings (set these in Coolify UI)
@@ -146,7 +145,6 @@ services:
   # For Application Monitoring / Debugging
   spotlight:
     pull_policy: always
-    container_name: spotlight
     ports:
       - 8969:8969/tcp
     image: ghcr.io/getsentry/spotlight:latest
@@ -159,17 +157,18 @@ services:
   # Temporal Stack (PG + ES managed externally)
   # -----------------------
   temporal:
-    container_name: temporal
     restart: always
     ports:
       - '7233:7233'
     image: temporalio/auto-setup:1.28.1
     environment:
       - DB=postgres12
-      - DB_PORT=${TEMPORAL_PG_PORT:-5432}
-      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PG_USER:-postgres}}
-      - POSTGRES_PWD=${TEMPORAL_PG_PASSWORD:-${PG_PASSWORD:-postgres}}
-      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PG_HOST:-postgres}}
+      - DB_PORT=5432
+      # REQUIRED: Set TEMPORAL_PG_HOST, TEMPORAL_PG_USER, TEMPORAL_PG_PASSWORD in Coolify UI
+      # These must point to your Coolify-managed PostgreSQL instance
+      - POSTGRES_USER=${TEMPORAL_PG_USER:-postgres}
+      - POSTGRES_PWD=${TEMPORAL_PG_PASSWORD:-postgres}
+      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-postgres}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
       - TEMPORAL_NAMESPACE=default
@@ -180,20 +179,19 @@ services:
     labels:
       kompose.volume.type: configMap
     healthcheck:
-      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      test: ["CMD", "nc", "-z", "localhost", "7233"]
       interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 90s
+      timeout: 5s
+      retries: 12
+      start_period: 120s
     deploy:
       resources:
         limits:
-          memory: 384M
+          memory: 512M
         reservations:
-          memory: 128M
+          memory: 256M
 
   temporal-admin-tools:
-    container_name: temporal-admin-tools
     image: temporalio/admin-tools:1.28.1-tctl-1.18.4-cli-1.4.1
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
@@ -209,7 +207,6 @@ services:
       - tools
 
   temporal-ui:
-    container_name: temporal-ui
     restart: always
     image: temporalio/ui:2.34.0
     environment:
