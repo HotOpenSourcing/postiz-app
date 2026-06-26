@@ -196,8 +196,7 @@ services:
       - TEMPORAL_CORS_ORIGINS=*
     networks:
       - temporal-network
-    ports:
-      - '8080:8080'
+    # Port removed — Coolify already uses 8080 for its reverse proxy.
 
 volumes:
   postiz-config:
