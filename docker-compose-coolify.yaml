@@ -2,6 +2,12 @@
 # Production compose for Coolify deployment.
 # PostgreSQL and Redis are managed externally by Coolify —
 # set DATABASE_URL and REDIS_URL in Coolify's environment variables UI.
+#
+# REQUIRED Coolify env vars (set in UI):
+#   DATABASE_URL, REDIS_URL, JWT_SECRET, MAIN_URL
+#
+# Temporal PostgreSQL (set these in Coolify UI, or temporal will fail to start):
+#   TEMPORAL_PG_HOST, TEMPORAL_PG_USER, TEMPORAL_PG_PASSWORD
 
 services:
   postiz:
@@ -99,6 +105,9 @@ services:
       # === Developer Settings
       NX_ADD_PLUGINS: 'false'
 
+      # === Memory Tuning (cap V8 heap at 512MB per process)
+      NODE_OPTIONS: '--max-old-space-size=512'
+
       # === Short Link Service Settings
       # DUB_TOKEN: ''
       # DUB_API_ENDPOINT: 'https://api.dub.co'
@@ -125,8 +134,14 @@ services:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:5000', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))\""]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # For Application Monitoring / Debugging
   spotlight:
@@ -152,9 +167,9 @@ services:
     environment:
       - DB=postgres12
       - DB_PORT=${TEMPORAL_PG_PORT:-5432}
-      - POSTGRES_USER=${TEMPORAL_PG_USER:-temporal}
-      - POSTGRES_PWD=${TEMPORAL_PG_PASSWORD:-temporal}
-      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST}
+      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PG_USER:-postgres}}
+      - POSTGRES_PWD=${TEMPORAL_PG_PASSWORD:-${PG_PASSWORD:-postgres}}
+      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PG_HOST:-postgres}}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
       - TEMPORAL_NAMESPACE=default
@@ -168,8 +183,14 @@ services:
       test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
       interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 128M
 
   temporal-admin-tools:
     container_name: temporal-admin-tools
@@ -196,7 +217,16 @@ services:
       - TEMPORAL_CORS_ORIGINS=*
     networks:
       - temporal-network
+    depends_on:
+      temporal:
+        condition: service_healthy
     # Port removed — Coolify already uses 8080 for its reverse proxy.
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
 
 volumes:
   postiz-config:
