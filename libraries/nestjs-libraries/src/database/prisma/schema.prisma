@@ -43,6 +43,9 @@ model Organization {
   webhooks            Webhooks[]
   oauthApp            OAuthApp[]
   oauthAuthorizations OAuthAuthorization[]
+  aiBaseUrl           String?
+  aiApiKey            String?
+  aiModel             String?
 
   @@index([apiKey])
   @@index([streakSince])
@@ -578,6 +581,9 @@ model PopularPosts {
   hook      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([category, topic])
 }
 
 model IntegrationsWebhooks {

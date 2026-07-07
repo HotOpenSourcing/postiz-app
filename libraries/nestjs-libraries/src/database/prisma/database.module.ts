@@ -44,10 +44,12 @@ import { ErrorsRepository } from '@gitroom/nestjs-libraries/database/prisma/erro
 import { ErrorsService } from '@gitroom/nestjs-libraries/database/prisma/errors/errors.service';
 import { AdminStatsRepository } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.repository';
 import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.service';
+import { MastraCleanupService } from '@gitroom/nestjs-libraries/database/prisma/mastra.cleanup.service';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Global()
 @Module({
-  imports: [],
+  imports: [ScheduleModule.forRoot()],
   controllers: [],
   providers: [
     PrismaService,
@@ -97,6 +99,7 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
     ErrorsService,
     AdminStatsRepository,
     AdminStatsService,
+    MastraCleanupService,
   ],
   get exports() {
     return this.providers;

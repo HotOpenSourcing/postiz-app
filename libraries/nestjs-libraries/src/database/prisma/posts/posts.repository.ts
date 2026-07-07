@@ -350,13 +350,87 @@ export class PostsRepository {
         ...(orgId ? { organizationId: orgId } : {}),
         deletedAt: null,
       },
-      include: {
-        integration: true,
+      select: {
+        id: true,
+        content: true,
+        publishDate: true,
+        state: true,
+        image: true,
+        settings: true,
+        delay: true,
+        group: true,
+        intervalInDays: true,
+        parentPostId: true,
+        creationMethod: true,
+        // Only select integration fields needed — avoids loading token/refreshToken
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            providerIdentifier: true,
+            picture: true,
+            type: true,
+            organizationId: true,
+            internalId: true,
+            disabled: true,
+            refreshNeeded: true,
+            postingTimes: true,
+            additionalSettings: true,
+            customInstanceDetails: true,
+            profile: true,
+          },
+        },
         tags: {
           select: {
             tag: true,
           },
         },
+      },
+    });
+  }
+
+  async findMinifiedPost(
+    id: string,
+    includeIntegration = false,
+    orgId?: string,
+    isFirst?: boolean
+  ) {
+    return this._post.model.post.findFirst({
+      where: {
+        id,
+        ...(orgId ? { organizationId: orgId } : {}),
+        ...(isFirst ? { parentPostId: null } : {}),
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        content: true,
+        publishDate: true,
+        releaseURL: true,
+        releaseId: true,
+        state: true,
+        image: true,
+        settings: true,
+        group: true,
+        parentPostId: true,
+        integrationId: true,
+        childrenPost: {
+          select: {
+            id: true,
+          },
+        },
+        ...(includeIntegration
+          ? {
+              integration: {
+                select: {
+                  id: true,
+                  name: true,
+                  providerIdentifier: true,
+                  picture: true,
+                },
+              },
+            }
+          : {}),
       },
     });
   }
@@ -367,24 +441,45 @@ export class PostsRepository {
     orgId?: string,
     isFirst?: boolean
   ) {
-    return this._post.model.post.findUnique({
+    return this._post.model.post.findFirst({
       where: {
         id,
         ...(orgId ? { organizationId: orgId } : {}),
+        ...(isFirst ? { parentPostId: null } : {}),
         deletedAt: null,
       },
-      include: {
-        ...(includeIntegration
-          ? {
-              integration: true,
-              tags: {
-                select: {
-                  tag: true,
-                },
-              },
-            }
-          : {}),
-        childrenPost: true,
+      select: {
+        id: true,
+        content: true,
+        publishDate: true,
+        releaseURL: true,
+        releaseId: true,
+        state: true,
+        image: true,
+        settings: true,
+        delay: true,
+        group: true,
+        intervalInDays: true,
+        parentPostId: true,
+        creationMethod: true,
+        childrenPost: {
+          select: {
+            id: true,
+          },
+        },
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            providerIdentifier: true,
+            picture: true,
+          },
+        },
+        tags: {
+          select: {
+            tag: true,
+          },
+        },
       },
     });
   }
@@ -781,6 +876,8 @@ export class PostsRepository {
           }),
         },
       },
+      // Only fetch publishDate — no need to load content/image/settings
+      select: { publishDate: true },
     });
 
     return times.filter(

@@ -419,4 +419,17 @@ export class OrganizationRepository {
       },
     });
   }
+
+  updateAiSettings(orgId: string, body: { aiBaseUrl?: string, aiApiKey?: string, aiModel?: string }) {
+    return this._organization.model.organization.update({
+      where: {
+        id: orgId,
+      },
+      data: {
+        aiBaseUrl: body.aiBaseUrl,
+        aiApiKey: body.aiApiKey,
+        aiModel: body.aiModel,
+      },
+    });
+  }
 }

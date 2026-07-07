@@ -300,8 +300,8 @@ export class PostsService {
     includeIntegration = false,
     orgId?: string,
     isFirst?: boolean
-  ): Promise<PostWithConditionals[]> {
-    const post = await this._postRepository.getPost(
+  ): Promise<any[]> {
+    const post = await this._postRepository.findMinifiedPost(
       id,
       includeIntegration,
       orgId,
@@ -313,7 +313,7 @@ export class PostsService {
     }
 
     return [
-      post!,
+      post,
       ...(post?.childrenPost?.length
         ? await this.getPostsRecursively(
             post?.childrenPost?.[0]?.id,

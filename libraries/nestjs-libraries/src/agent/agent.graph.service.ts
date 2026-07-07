@@ -15,22 +15,16 @@ import { z } from 'zod';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { GeneratorDto } from '@gitroom/nestjs-libraries/dtos/generator/generator.dto';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 
 const tools = !process.env.TAVILY_API_KEY
   ? []
   : [new TavilySearch({ maxResults: 3 })];
 const toolNode = new ToolNode(tools);
 
-const model = new ChatOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'gpt-4.1',
-  temperature: 0.7,
-});
-
-const dalle = new DallEAPIWrapper({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-  model: 'chatgpt-image-latest',
-});
+// Redis TTL for category/topic caches (1 hour)
+const CACHE_TTL_SECONDS = 3600;
 
 interface WorkflowChannelsState {
   messages: BaseMessage[];
@@ -106,15 +100,44 @@ export class AgentGraphService {
   private storage = UploadFactory.createStorage();
   constructor(
     private _postsService: PostsService,
-    private _mediaService: MediaService
+    private _mediaService: MediaService,
+    private _organizationService: OrganizationService
   ) {}
+
+  private async getModels(orgId: string) {
+    const organization = await this._organizationService.getOrgById(orgId);
+    const apiKey = organization?.aiApiKey || process.env.OPENAI_API_KEY || 'sk-proj-';
+    const configuration = {
+      apiKey,
+      ...(organization?.aiBaseUrl ? { configuration: { baseURL: organization.aiBaseUrl } } : {}),
+    };
+
+    const cheapModel = new ChatOpenAI({
+      ...configuration,
+      model: organization?.aiModel || 'gpt-4o-mini',
+      temperature: 0.3,
+    });
+
+    const fullModel = new ChatOpenAI({
+      ...configuration,
+      model: organization?.aiModel || 'gpt-4o',
+      temperature: 0.7,
+    });
+
+    const dalle = new DallEAPIWrapper({
+      ...configuration,
+      model: 'chatgpt-image-latest',
+    });
+
+    return { cheapModel, fullModel, dalle };
+  }
   static state = () =>
     new StateGraph<WorkflowChannelsState>({
       channels: {
         messages: {
-          reducer: (currentState, updateValue) =>
+          reducer: (currentState: BaseMessage[], updateValue: BaseMessage[]) =>
             currentState.concat(updateValue),
-          default: () => [],
+          default: (): BaseMessage[] => [],
         },
         fresearch: null,
         format: null,
@@ -132,7 +155,8 @@ export class AgentGraphService {
     });
 
   async startCall(state: WorkflowChannelsState) {
-    const runTools = model.bindTools(tools);
+    const { fullModel } = await this.getModels(state.orgId);
+    const runTools = fullModel.bindTools(tools);
     const response = await ChatPromptTemplate.fromTemplate(
       `
     Today is ${dayjs().format()}, You are an assistant that gets a social media post or requests for a social media post.
@@ -155,8 +179,18 @@ export class AgentGraphService {
   }
 
   async findCategories(state: WorkflowChannelsState) {
-    const allCategories = await this._postsService.findAllExistingCategories();
-    const structuredOutput = model.withStructuredOutput(category);
+    // Cache category list in Redis — avoids repetitive DB queries on every generation
+    const cacheKey = `ai:categories`;
+    const cached = await ioRedis.get(cacheKey);
+    const allCategories = cached
+      ? JSON.parse(cached)
+      : await this._postsService.findAllExistingCategories();
+    if (!cached) {
+      await ioRedis.set(cacheKey, JSON.stringify(allCategories), 'EX', CACHE_TTL_SECONDS);
+    }
+    // Use cheap model for classification — structured output, no creativity needed
+    const { cheapModel } = await this.getModels(state.orgId);
+    const structuredOutput = cheapModel.withStructuredOutput(category);
     const { category: outputCategory } = await ChatPromptTemplate.fromTemplate(
       `
         You are an assistant that gets a text that will be later summarized into a social media post
@@ -166,7 +200,7 @@ export class AgentGraphService {
     )
       .pipe(structuredOutput)
       .invoke({
-        categories: allCategories.map((p) => p.category).join(', '),
+        categories: allCategories.map((p: any) => p.category).join(', '),
         text: state.fresearch,
       });
 
@@ -176,14 +210,21 @@ export class AgentGraphService {
   }
 
   async findTopic(state: WorkflowChannelsState) {
-    const allTopics = await this._postsService.findAllExistingTopicsOfCategory(
-      state?.category!
-    );
+    // Cache topics per category in Redis
+    const cacheKey = `ai:topics:${state.category}`;
+    const cachedTopics = await ioRedis.get(cacheKey);
+    const allTopics = cachedTopics
+      ? JSON.parse(cachedTopics)
+      : await this._postsService.findAllExistingTopicsOfCategory(state?.category!);
+    if (!cachedTopics) {
+      await ioRedis.set(cacheKey, JSON.stringify(allTopics), 'EX', CACHE_TTL_SECONDS);
+    }
     if (allTopics.length === 0) {
       return { topic: null };
     }
-
-    const structuredOutput = model.withStructuredOutput(topic);
+    // Use cheap model for classification
+    const { cheapModel } = await this.getModels(state.orgId);
+    const structuredOutput = cheapModel.withStructuredOutput(topic);
     const { topic: outputTopic } = await ChatPromptTemplate.fromTemplate(
       `
         You are an assistant that gets a text that will be later summarized into a social media post
@@ -193,7 +234,7 @@ export class AgentGraphService {
     )
       .pipe(structuredOutput)
       .invoke({
-        topics: allTopics.map((p) => p.topic).join(', '),
+        topics: allTopics.map((p: any) => p.topic).join(', '),
         text: state.fresearch,
       });
 
@@ -211,7 +252,9 @@ export class AgentGraphService {
   }
 
   async generateHook(state: WorkflowChannelsState) {
-    const structuredOutput = model.withStructuredOutput(hook);
+    // Use cheap model for hook generation — straightforward structured output task
+    const { cheapModel } = await this.getModels(state.orgId);
+    const structuredOutput = cheapModel.withStructuredOutput(hook);
     const { hook: outputHook } = await ChatPromptTemplate.fromTemplate(
       `
         You are an assistant that gets content for a social media post, and generate only the hook.
@@ -253,7 +296,9 @@ export class AgentGraphService {
   }
 
   async generateContent(state: WorkflowChannelsState) {
-    const structuredOutput = model.withStructuredOutput(
+    // Use full model for content generation — this is the quality-critical step
+    const { fullModel } = await this.getModels(state.orgId);
+    const structuredOutput = fullModel.withStructuredOutput(
       contentZod(!!state.isPicture, state.format)
     );
     const { content: outputContent } = await ChatPromptTemplate.fromTemplate(
@@ -318,6 +363,7 @@ export class AgentGraphService {
       return {};
     }
 
+    const { dalle } = await this.getModels(state.orgId);
     const newContent = await Promise.all(
       (state.content || []).map(async (p) => {
         const image = await dalle.invoke(p.prompt!);

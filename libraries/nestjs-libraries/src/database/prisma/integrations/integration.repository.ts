@@ -489,8 +489,16 @@ export class IntegrationRepository {
         organizationId: org,
         deletedAt: null,
       },
-      include: {
-        customer: true,
+      select: {
+        id: true,
+        name: true,
+        picture: true,
+        providerIdentifier: true,
+        type: true,
+        disabled: true,
+        refreshNeeded: true,
+        profile: true,
+        organizationId: true,
       },
     });
   }

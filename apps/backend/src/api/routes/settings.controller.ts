@@ -5,6 +5,7 @@ import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permis
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { AddTeamMemberDto } from '@gitroom/nestjs-libraries/dtos/settings/add.team.member.dto';
 import { ShortlinkPreferenceDto } from '@gitroom/nestjs-libraries/dtos/settings/shortlink-preference.dto';
+import { UpdateAiSettingsDto } from '@gitroom/nestjs-libraries/dtos/organizations/update.ai.settings.dto';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
@@ -63,5 +64,24 @@ export class SettingsController {
       org.id,
       body.shortlink
     );
+  }
+
+  @Get('/ai')
+  async getAiSettings(@GetOrgFromRequest() org: Organization) {
+    const fullOrg = await this._organizationService.getOrgById(org.id);
+    return {
+      aiBaseUrl: fullOrg?.aiBaseUrl,
+      aiApiKey: fullOrg?.aiApiKey,
+      aiModel: fullOrg?.aiModel,
+    };
+  }
+
+  @Post('/ai')
+  @CheckPolicies([AuthorizationActions.Create, Sections.ADMIN])
+  async updateAiSettings(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: UpdateAiSettingsDto
+  ) {
+    return this._organizationService.updateAiSettings(org.id, body);
   }
 }

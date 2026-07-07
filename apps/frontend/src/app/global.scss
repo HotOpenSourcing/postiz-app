@@ -1,5 +1,4 @@
 @use './colors.scss';
-@use './polonto.css';
 @use '@uppy/core/dist/style.css' as uppyCore;
 @use '@uppy/dashboard/dist/style.css' as uppyDashboard;
 
@@ -74,24 +73,25 @@ body * {
 }
 
 .swal2-modal {
-  @apply bg-primary #{!important};
-  @apply border-b-[2px] border-b-sixth;
+  background-color: var(--primary) !important;
+  border-bottom: 2px solid var(--sixth);
 }
 
 .swal2-modal * {
-  @apply text-textColor #{!important};
+  color: var(--text-color) !important;
 }
 
 .swal2-icon {
-  @apply text-textColor bg-primary #{!important};
+  color: var(--text-color) !important;
+  background-color: var(--primary) !important;
 }
 
 .swal2-cancel {
-  @apply text-white #{!important};
+  color: white !important;
 }
 .swal2-confirm {
-  @apply bg-customColor50 #{!important};
-  @apply text-white #{!important};
+  background-color: var(--customColor50) !important;
+  color: white !important;
 }
 
 .w-md-editor-text {

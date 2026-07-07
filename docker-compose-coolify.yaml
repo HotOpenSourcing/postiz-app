@@ -1,24 +1,24 @@
 # docker-compose-coolify.yaml
 # Production compose for Coolify deployment.
 # PostgreSQL and Redis are managed externally by Coolify.
-#
-# REQUIRED Coolify env vars (set in UI):
-#   DATABASE_URL, REDIS_URL, JWT_SECRET, MAIN_URL
-#
-# Coolify auto-injects PGHOST, PGUSER, PGPASSWORD from linked database.
-# Temporal uses these automatically. No extra config needed if sharing the
-# same database. For a separate temporal DB, set in Coolify UI:
-#   TEMPORAL_PG_HOST, TEMPORAL_PG_USER, TEMPORAL_PG_PWD
+# Performance optimized: Elasticsearch removed (~1GB RAM saved).
 
 services:
   postiz:
     image: ghcr.io/gitroomhq/postiz-app:latest
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '1.5'
+        reservations:
+          memory: 512m
     environment:
-      # === Required Settings (set these in Coolify UI)
-      MAIN_URL: '${MAIN_URL:-http://localhost:4007}'
-      FRONTEND_URL: '${FRONTEND_URL:-http://localhost:4007}'
-      NEXT_PUBLIC_BACKEND_URL: '${NEXT_PUBLIC_BACKEND_URL:-http://localhost:4007/api}'
+      # === Required Settings (Set these in Coolify UI)
+      MAIN_URL: '${MAIN_URL}'
+      FRONTEND_URL: '${FRONTEND_URL}'
+      NEXT_PUBLIC_BACKEND_URL: '${NEXT_PUBLIC_BACKEND_URL}'
       JWT_SECRET: '${JWT_SECRET}'
       DATABASE_URL: '${DATABASE_URL}'
       REDIS_URL: '${REDIS_URL}'
@@ -26,107 +26,19 @@ services:
       TEMPORAL_ADDRESS: "temporal:7233"
       IS_GENERAL: 'true'
       DISABLE_REGISTRATION: '${DISABLE_REGISTRATION:-false}'
-
-      # === Storage Settings
       STORAGE_PROVIDER: '${STORAGE_PROVIDER:-local}'
       UPLOAD_DIRECTORY: '/uploads'
       NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
-
-      # === Cloudflare (R2) Settings
-      # CLOUDFLARE_ACCESS_KEY: ''
-      # CLOUDFLARE_SECRET_ACCESS_KEY: ''
-      # CLOUDFLARE_BUCKETNAME: ''
-      # CLOUDFLARE_BUCKET_URL: ''
-      # CLOUDFLARE_REGION: 'auto'
-
-      # === Social Media API Settings
-      X_URL: ''
-      X_API_KEY: ''
-      X_API_SECRET: ''
-      LINKEDIN_CLIENT_ID: ''
-      LINKEDIN_CLIENT_SECRET: ''
-      REDDIT_CLIENT_ID: ''
-      REDDIT_CLIENT_SECRET: ''
-      GITHUB_CLIENT_ID: ''
-      GITHUB_CLIENT_SECRET: ''
-      BEEHIIVE_API_KEY: ''
-      BEEHIIVE_PUBLICATION_ID: ''
-      THREADS_APP_ID: ''
-      THREADS_APP_SECRET: ''
-      FACEBOOK_APP_ID: ''
-      FACEBOOK_APP_SECRET: ''
-      YOUTUBE_CLIENT_ID: ''
-      YOUTUBE_CLIENT_SECRET: ''
-      TIKTOK_CLIENT_ID: ''
-      TIKTOK_CLIENT_SECRET: ''
-      PINTEREST_CLIENT_ID: ''
-      PINTEREST_CLIENT_SECRET: ''
-      DRIBBBLE_CLIENT_ID: ''
-      DRIBBBLE_CLIENT_SECRET: ''
-      DISCORD_CLIENT_ID: ''
-      DISCORD_CLIENT_SECRET: ''
-      DISCORD_BOT_TOKEN_ID: ''
-      SLACK_ID: ''
-      SLACK_SECRET: ''
-      SLACK_SIGNING_SECRET: ''
-      MASTODON_URL: 'https://mastodon.social'
-      MASTODON_CLIENT_ID: ''
-      MASTODON_CLIENT_SECRET: ''
-
-      # === OAuth & Authentik Settings
-      # NEXT_PUBLIC_POSTIZ_OAUTH_DISPLAY_NAME: 'Authentik'
-      # NEXT_PUBLIC_POSTIZ_OAUTH_LOGO_URL: ''
-      # POSTIZ_GENERIC_OAUTH: 'false'
-      # POSTIZ_OAUTH_URL: 'https://auth.example.com'
-      # POSTIZ_OAUTH_AUTH_URL: ''
-      # POSTIZ_OAUTH_TOKEN_URL: ''
-      # POSTIZ_OAUTH_USERINFO_URL: ''
-      # POSTIZ_OAUTH_CLIENT_ID: ''
-      # POSTIZ_OAUTH_CLIENT_SECRET: ''
-      # POSTIZ_OAUTH_SCOPE: 'openid profile email'
-
-      # === Sentry
-      # NEXT_PUBLIC_SENTRY_DSN: ''
-      # SENTRY_SPOTLIGHT: '1'
-
-      # === Misc Settings
-      OPENAI_API_KEY: ''
-      NEXT_PUBLIC_DISCORD_SUPPORT: ''
-      NEXT_PUBLIC_POLOTNO: ''
-      API_LIMIT: '${API_LIMIT:-30}'
-
-      # === Payment / Stripe Settings
-      FEE_AMOUNT: '${FEE_AMOUNT:-0.05}'
-      STRIPE_PUBLISHABLE_KEY: ''
-      STRIPE_SECRET_KEY: ''
-      STRIPE_SIGNING_KEY: ''
-      STRIPE_SIGNING_KEY_CONNECT: ''
-
-      # === Developer Settings
-      NX_ADD_PLUGINS: 'false'
-
-      # === Memory Tuning (cap V8 heap at 512MB per process)
+      # Memory Tuning
       NODE_OPTIONS: '--max-old-space-size=512'
-
-      # === Short Link Service Settings
-      # DUB_TOKEN: ''
-      # DUB_API_ENDPOINT: 'https://api.dub.co'
-      # DUB_SHORT_LINK_DOMAIN: 'dub.sh'
-      # SHORT_IO_SECRET_KEY: ''
-      # KUTT_API_KEY: ''
-      # KUTT_API_ENDPOINT: 'https://kutt.it/api/v2'
-      # KUTT_SHORT_LINK_DOMAIN: 'kutt.it'
-      # LINK_DRIP_API_KEY: ''
-      # LINK_DRIP_API_ENDPOINT: 'https://api.linkdrip.com/v1/'
-      # LINK_DRIP_SHORT_LINK_DOMAIN: 'dripl.ink'
 
     volumes:
       - postiz-config:/config/
       - postiz-uploads:/uploads/
     ports:
-      - "4007:5000"
+      - "${PORT:-4007}:5000"
     networks:
-      - temporal-network
+      - postiz-network
     depends_on:
       temporal:
         condition: service_healthy
@@ -136,100 +48,74 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
-
-  # For Application Monitoring / Debugging
-  spotlight:
-    pull_policy: always
-    ports:
-      - 8969:8969/tcp
-    image: ghcr.io/getsentry/spotlight:latest
-    networks:
-      - temporal-network
-    profiles:
-      - debug
 
   # -----------------------
   # Temporal Stack
-  # Uses temporal's native auto-setup entrypoint.
-  # Coolify injects PGHOST/PGUSER/PGPASSWORD from linked database resource.
-  # Override with TEMPORAL_PG_HOST/TEMPORAL_PG_USER/TEMPORAL_PG_PWD if needed.
+  # Elasticsearch removed — Temporal uses SQL-based visibility (PostgreSQL)
+  # which is sufficient for VPS deployments managed by Coolify.
   # -----------------------
   temporal:
     restart: always
-    ports:
-      - '7233:7233'
     image: temporalio/auto-setup:1.28.1
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: '0.5'
+        reservations:
+          memory: 256m
     environment:
+      # Coolify typically injects PGHOST/PGUSER/PGPASSWORD from linked DBs.
+      # Fallback to specific TEMPORAL_PG_* variables if using a separate DB.
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PGHOST:-postgres}}
       - POSTGRES_USER=${TEMPORAL_PG_USER:-${PGUSER:-postgres}}
       - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PGPASSWORD:-}}
+      - DBNAME=${TEMPORAL_DB:-temporal}
+      - VISIBILITY_DBNAME=${TEMPORAL_VISIBILITY_DB:-temporal_visibility}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
       - SKIP_DB_CREATE=false
       - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - LOG_LEVEL=info
     networks:
-      - temporal-network
+      - postiz-network
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
     healthcheck:
       test: ["CMD", "sh", "-c", "nc -z localhost 7233 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 12
       start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
-  temporal-admin-tools:
-    image: temporalio/admin-tools:1.28.1-tctl-1.18.4-cli-1.4.1
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_ADDRESS=temporal:7233
-    networks:
-      - temporal-network
-    stdin_open: true
-    depends_on:
-      temporal:
-        condition: service_healthy
-    tty: true
-    profiles:
-      - tools
-
+  # temporal-ui (Optional)
+  # Remove or disable if RAM is extremely tight.
   temporal-ui:
     restart: always
     image: temporalio/ui:2.34.0
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+        reservations:
+          memory: 64m
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=*
     networks:
-      - temporal-network
+      - postiz-network
     depends_on:
       temporal:
         condition: service_healthy
-    # Port removed — Coolify already uses 8080 for its reverse proxy.
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-        reservations:
-          memory: 64M
 
 volumes:
   postiz-config:
   postiz-uploads:
 
 networks:
-  temporal-network:
+  postiz-network:
     driver: bridge
-    name: temporal-network
+    name: postiz-network
+

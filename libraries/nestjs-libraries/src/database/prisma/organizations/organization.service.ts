@@ -130,4 +130,8 @@ export class OrganizationService {
       shortlink
     );
   }
+
+  updateAiSettings(orgId: string, body: { aiBaseUrl?: string, aiApiKey?: string, aiModel?: string }) {
+    return this._organizationRepository.updateAiSettings(orgId, body);
+  }
 }
