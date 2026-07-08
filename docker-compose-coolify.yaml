@@ -71,10 +71,10 @@ services:
       # Coolify typically injects PGHOST/PGUSER/PGPASSWORD from linked DBs.
       # Fallback to specific TEMPORAL_PG_* variables if using a separate DB.
       - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PGHOST:-postgres}}
-      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PGUSER:-postgres}}
-      - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PGPASSWORD:-}}
+      - DB_PORT=${DB_PORT:-5432}
+      - POSTGRES_SEEDS=${TEMPORAL_PG_HOST:-${PGHOST}}
+      - POSTGRES_USER=${TEMPORAL_PG_USER:-${PGUSER}}
+      - POSTGRES_PWD=${TEMPORAL_PG_PWD:-${PGPASSWORD}}
       - DBNAME=${TEMPORAL_DB:-temporal}
       - VISIBILITY_DBNAME=${TEMPORAL_VISIBILITY_DB:-temporal_visibility}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
@@ -82,7 +82,6 @@ services:
       - SKIP_DB_CREATE=false
       - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - LOG_LEVEL=debug
-      - POSTGRES_DB=${TEMPORAL_DB:-temporal}
     networks:
       - postiz-network
     volumes:
