@@ -5,7 +5,9 @@
 
 services:
   postiz:
-    image: ghcr.io/gitroomhq/postiz-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     restart: always
     deploy:
       resources:
@@ -31,6 +33,7 @@ services:
       NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
       # Memory Tuning
       NODE_OPTIONS: '--max-old-space-size=512'
+    command: sh -c "until pnpm run prisma-db-push; do echo 'Waiting for database...'; sleep 2; done && nginx && pnpm run pm2"
 
     volumes:
       - postiz-config:/config/
@@ -43,11 +46,11 @@ services:
       temporal:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:5000', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))\""]
+      test: ["CMD", "curl", "-f", "http://localhost:5000"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 90s
+      start_period: 300s
 
   # -----------------------
   # Temporal Stack
@@ -88,7 +91,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 12
-      start_period: 120s
+      start_period: 180s
 
   # temporal-ui (Optional)
   # Remove or disable if RAM is extremely tight.

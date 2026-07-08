@@ -16,7 +16,7 @@ export class IntegrationRepository {
     private _plugs: PrismaRepository<'plugs'>,
     private _exisingPlugData: PrismaRepository<'exisingPlugData'>,
     private _customers: PrismaRepository<'customer'>,
-    private _mentions: PrismaRepository<'mentions'>
+    private _mentions: PrismaRepository<'mentions'>,
   ) {}
 
   getMentions(platform: string, q: string) {
@@ -52,7 +52,7 @@ export class IntegrationRepository {
 
   insertMentions(
     platform: string,
-    mentions: { name: string; username: string; image: string }[]
+    mentions: { name: string; username: string; image: string }[],
   ) {
     if (mentions.length === 0) {
       return [] as any[];
@@ -229,7 +229,7 @@ export class IntegrationRepository {
     isBetweenSteps = false,
     refresh?: string,
     timezone?: number,
-    customInstanceDetails?: string
+    customInstanceDetails?: string,
   ) {
     const postTimes = timezone
       ? {
@@ -387,7 +387,7 @@ export class IntegrationRepository {
     id: string,
     order: string,
     user: string,
-    org: string
+    org: string,
   ) {
     const integration = await this._posts.model.post.findFirst({
       where: {
@@ -499,6 +499,16 @@ export class IntegrationRepository {
         refreshNeeded: true,
         profile: true,
         organizationId: true,
+        internalId: true,
+        inBetweenSteps: true,
+        postingTimes: true,
+        additionalSettings: true,
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   }
@@ -639,7 +649,7 @@ export class IntegrationRepository {
   async loadExisingData(
     methodName: string,
     integrationId: string,
-    id: string[]
+    id: string[],
   ) {
     return this._exisingPlugData.model.exisingPlugData.findMany({
       where: {
@@ -655,7 +665,7 @@ export class IntegrationRepository {
   async saveExisingData(
     methodName: string,
     integrationId: string,
-    value: string[]
+    value: string[],
   ) {
     return this._exisingPlugData.model.exisingPlugData.createMany({
       data: value.map((p) => ({
