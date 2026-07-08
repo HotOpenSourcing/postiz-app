@@ -79,8 +79,10 @@ services:
       - VISIBILITY_DBNAME=${TEMPORAL_VISIBILITY_DB:-temporal_visibility}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
       - ENABLE_ES=false
-      - SKIP_DB_CREATE=false
-      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - SKIP_DB_CREATE=${SKIP_DB_CREATE:-false}
+      - SKIP_DEFAULT_NAMESPACE_CREATION=${SKIP_DEFAULT_NAMESPACE_CREATION:-false}
+      - POSTGRES_TLS_ENABLED=${POSTGRES_TLS_ENABLED:-false}
+      - POSTGRES_TLS_DISABLE_HOST_VERIFICATION=${POSTGRES_TLS_DISABLE_HOST_VERIFICATION:-true}
       - LOG_LEVEL=debug
     networks:
       - postiz-network

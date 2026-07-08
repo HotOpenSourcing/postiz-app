@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     nginx \
     curl \
+    postgresql-client \
+    dnsutils \
 && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system www \
@@ -20,12 +22,16 @@ RUN npm --no-update-notifier --no-fund --global install pnpm@10.6.1 pm2
 
 WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc /app/
+# Copy all package.json files for all apps and libraries to enable caching
 COPY apps/backend/package.json /app/apps/backend/
 COPY apps/frontend/package.json /app/apps/frontend/
 COPY apps/orchestrator/package.json /app/apps/orchestrator/
 COPY apps/extension/package.json /app/apps/extension/
 COPY apps/sdk/package.json /app/apps/sdk/
+COPY apps/commands/package.json /app/apps/commands/
 COPY libraries/nestjs-libraries/package.json /app/libraries/nestjs-libraries/
+COPY libraries/helpers/package.json /app/libraries/helpers/
+COPY libraries/react-shared-libraries/package.json /app/libraries/react-shared-libraries/
 
 RUN pnpm install
 
