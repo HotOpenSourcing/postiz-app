@@ -81,7 +81,8 @@ services:
       - ENABLE_ES=false
       - SKIP_DB_CREATE=false
       - SKIP_DEFAULT_NAMESPACE_CREATION=false
-      - LOG_LEVEL=info
+      - LOG_LEVEL=debug
+      - POSTGRES_DB=${TEMPORAL_DB:-temporal}
     networks:
       - postiz-network
     volumes:
@@ -90,8 +91,8 @@ services:
       test: ["CMD", "sh", "-c", "nc -z localhost 7233 || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 12
-      start_period: 180s
+      retries: 20
+      start_period: 200s
 
   # temporal-ui (Optional)
   # Remove or disable if RAM is extremely tight.
